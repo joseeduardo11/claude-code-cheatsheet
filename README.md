@@ -173,4 +173,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ for the Claude Code community**
 
-*Last updated: December 2024*
+*Last updated: December 2025*
