@@ -1,0 +1,902 @@
+# Git Diff + Claude Code: Automated Code Reviews
+
+Learn how to automate code reviews using Claude Code's SDK mode with git diff for security audits, performance analysis, and improvement suggestions.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Command Breakdown](#command-breakdown)
+- [What Each Review Does](#what-each-review-does)
+- [Complete Workflow](#complete-workflow)
+- [SAP Development Examples](#sap-development-examples)
+- [Advanced Patterns](#advanced-patterns)
+- [CI/CD Integration](#cicd-integration)
+- [Shell Scripts](#shell-scripts)
+- [Best Practices](#best-practices)
+
+---
+
+## Overview
+
+These commands leverage Claude Code's **SDK mode** (`-p` flag) to automate code reviews by piping git diffs directly to Claude for analysis. The results are saved to markdown files for documentation and team review.
+
+### The Three Core Reviews
+
+```bash
+# Security Review
+git diff HEAD~1 | claude -p "review this PR for security issues" > security_review.md
+
+# Performance Review
+git diff HEAD~1 | claude -p "check for performance issues" > performance_review.md
+
+# Improvement Suggestions
+git diff HEAD~1 | claude -p "suggest improvements" > improvements.md
+```
+
+---
+
+## Command Breakdown
+
+### Anatomy of the Command
+
+```bash
+git diff HEAD~1 | claude -p "review this PR for security issues" > security_review.md
+```
+
+Let's break down each component:
+
+#### 1. `git diff HEAD~1`
+
+**What it does**: Shows changes between the previous commit and current commit
+
+**Output example**:
+```diff
+diff --git a/src/auth.js b/src/auth.js
+index abc123..def456 100644
+--- a/src/auth.js
++++ b/src/auth.js
+@@ -10,7 +10,7 @@
+ 
+ function login(req, res) {
+-  const password = req.body.password;
++  const password = sanitize(req.body.password);
+   const user = authenticate(username, password);
+ }
+```
+
+**Variations**:
+- `git diff HEAD~1` - Compare last commit to current
+- `git diff HEAD~3` - Compare last 3 commits to current
+- `git diff --staged` - Compare staged changes
+- `git diff main...feature` - Compare branches
+
+#### 2. `|` (Pipe Operator)
+
+**What it does**: Passes output from left command as input to right command
+
+**Flow**:
+```
+git diff output → Claude Code input
+```
+
+#### 3. `claude -p "instruction"`
+
+**Components**:
+- `claude` - The Claude Code CLI
+- `-p` - **Print/SDK mode** (one-shot execution, no REPL)
+- `"instruction"` - Your prompt for Claude
+
+**Key characteristics of `-p` mode**:
+- ✅ Executes once and exits immediately
+- ✅ Non-interactive (no conversation)
+- ✅ Perfect for automation and scripts
+- ✅ Cost-effective (single API call)
+- ✅ Output goes to stdout (can be redirected)
+
+#### 4. `> security_review.md`
+
+**What it does**: Redirects Claude's output to a file
+
+**Result**: Creates/overwrites file with analysis
+
+**Alternatives**:
+- `>` - Overwrite file
+- `>>` - Append to file
+- `| tee file.md` - Display AND save to file
+
+---
+
+## Complete Flow Diagram
+
+```
+┌─────────────────────────┐
+│   git diff HEAD~1       │  Shows code changes (additions, deletions, modifications)
+└───────────┬─────────────┘
+            │ (pipe |)
+            ▼
+┌─────────────────────────┐
+│  claude -p "prompt"     │  Claude analyzes the diff with your instruction
+└───────────┬─────────────┘
+            │ (redirect >)
+            ▼
+┌─────────────────────────┐
+│  output_file.md         │  Review saved to markdown file
+└─────────────────────────┘
+```
+
+---
+
+## What Each Review Does
+
+### Security Review
+
+```bash
+git diff HEAD~1 | claude -p "review this PR for security issues" > security_review.md
+```
+
+**Analyzes for**:
+- SQL injection vulnerabilities
+- Cross-site scripting (XSS) risks
+- Authentication/authorization flaws
+- Insecure data handling
+- Exposed secrets or credentials
+- Input validation issues
+- CSRF vulnerabilities
+- Insecure dependencies
+
+**Example output**:
+```markdown
+# Security Review
+
+## Critical Issues
+1. **SQL Injection Risk** (Line 45)
+   - Direct string concatenation in SQL query
+   - Recommendation: Use parameterized queries
+
+2. **Password Storage** (Line 78)
+   - Plain text password storage
+   - Recommendation: Use bcrypt or similar hashing
+
+## Warnings
+- Missing input sanitization on user data
+- No rate limiting on authentication endpoint
+```
+
+### Performance Review
+
+```bash
+git diff HEAD~1 | claude -p "check for performance issues" > performance_review.md
+```
+
+**Analyzes for**:
+- Inefficient algorithms (O(n²) vs O(n))
+- Database query optimization (N+1 problems)
+- Memory leaks
+- Blocking operations
+- Unnecessary loops or iterations
+- Heavy computations in loops
+- Missing indexes
+- Redundant API calls
+
+**Example output**:
+```markdown
+# Performance Review
+
+## High Impact Issues
+1. **N+1 Query Problem** (Line 120-125)
+   - Loading related data in loop
+   - Impact: 100+ database queries instead of 1
+   - Solution: Use JOIN or eager loading
+
+2. **Inefficient Array Search** (Line 89)
+   - Using Array.find() inside nested loop
+   - Complexity: O(n²)
+   - Solution: Use Map or Set for O(1) lookup
+```
+
+### Improvement Suggestions
+
+```bash
+git diff HEAD~1 | claude -p "suggest improvements" > improvements.md
+```
+
+**Suggests**:
+- Code quality improvements
+- Better error handling
+- Refactoring opportunities
+- Design pattern recommendations
+- Code readability enhancements
+- Test coverage suggestions
+- Documentation additions
+- Best practice alignment
+
+**Example output**:
+```markdown
+# Code Improvements
+
+## Refactoring Opportunities
+1. **Extract Method** (Lines 50-75)
+   - Complex function doing multiple things
+   - Suggestion: Split into smaller, focused functions
+
+2. **Error Handling** (Lines 30-35)
+   - Generic catch block swallowing errors
+   - Suggestion: Specific error types with proper logging
+
+## Code Quality
+- Add JSDoc comments for public functions
+- Use destructuring for cleaner parameter handling
+- Consider using async/await instead of callbacks
+```
+
+---
+
+## SAP Development Examples
+
+### CAP (Cloud Application Programming) Development
+
+#### Review CDS Models
+```bash
+# Review data model changes
+git diff HEAD~1 -- db/schema.cds | \
+  claude -p "review this CDS model for data modeling best practices and associations" > cds_review.md
+
+# Check for breaking changes
+git diff HEAD~1 -- db/ | \
+  claude -p "identify breaking changes in the data model" > breaking_changes.md
+```
+
+#### Review CAP Services
+```bash
+# Review service implementation
+git diff HEAD~1 -- srv/ | \
+  claude -p "check OData service for security, performance, and CAP best practices" > service_review.md
+
+# Review custom handlers
+git diff HEAD~1 -- srv/*.js | \
+  claude -p "review custom event handlers for error handling and transactions" > handlers_review.md
+```
+
+#### Review App Configuration
+```bash
+# Review package.json dependencies
+git diff HEAD~1 -- package.json | \
+  claude -p "check for security vulnerabilities and deprecated packages" > deps_review.md
+
+# Review mta.yaml
+git diff HEAD~1 -- mta.yaml | \
+  claude -p "validate MTA deployment configuration and resource bindings" > mta_review.md
+
+# Review xs-security.json
+git diff HEAD~1 -- xs-security.json | \
+  claude -p "audit security scopes, roles, and OAuth configuration" > security_config.md
+```
+
+### UI5/Fiori Development
+
+#### Review UI5 Components
+```bash
+# Review controllers
+git diff HEAD~1 -- webapp/controller/ | \
+  claude -p "review UI5 controllers for best practices, memory leaks, and event handling" > controller_review.md
+
+# Review views
+git diff HEAD~1 -- webapp/view/ | \
+  claude -p "check XML views for binding syntax and performance" > view_review.md
+
+# Review models
+git diff HEAD~1 -- webapp/model/ | \
+  claude -p "review model implementations and data binding strategies" > model_review.md
+```
+
+#### Review Fiori Configuration
+```bash
+# Review manifest.json
+git diff HEAD~1 -- webapp/manifest.json | \
+  claude -p "validate Fiori app configuration, routing, and data sources" > manifest_review.md
+
+# Review i18n files
+git diff HEAD~1 -- webapp/i18n/ | \
+  claude -p "check for missing translations and consistency" > i18n_review.md
+```
+
+### ABAP Development (Git-enabled)
+
+```bash
+# Review ABAP classes
+git diff HEAD~1 -- src/*.abap | \
+  claude -p "review ABAP code for coding standards, SQL performance, and memory usage" > abap_review.md
+
+# Review database procedures
+git diff HEAD~1 -- db/src/*.hdbprocedure | \
+  claude -p "review SQLScript procedures for performance and best practices" > hdbprocedure_review.md
+```
+
+---
+
+## Advanced Patterns
+
+### Review Specific Files
+
+```bash
+# Single file review
+git diff HEAD~1 -- src/auth.js | \
+  claude -p "security audit of authentication module" > auth_security.md
+
+# Multiple specific files
+git diff HEAD~1 -- src/auth.js src/user.js | \
+  claude -p "review authentication and user management" > auth_user_review.md
+```
+
+### Review Staged Changes (Pre-commit)
+
+```bash
+# Review what's about to be committed
+git diff --staged | \
+  claude -p "final review before commit - check for console.logs, TODOs, and issues" > pre_commit_review.md
+```
+
+### Compare Branches
+
+```bash
+# Review feature branch against main
+git diff main...feature-branch | \
+  claude -p "review all feature changes for production readiness" > feature_review.md
+
+# Review specific feature files
+git diff main...feature-branch -- srv/ | \
+  claude -p "review service layer changes" > feature_service_review.md
+```
+
+### Multiple Commits Review
+
+```bash
+# Review last 5 commits
+git diff HEAD~5 | \
+  claude -p "summarize changes and potential impact on production" > changelog.md
+
+# Review commits in date range
+git diff '@{2024-12-01}'..HEAD | \
+  claude -p "review all December changes" > december_review.md
+```
+
+### Parallel Reviews
+
+```bash
+# Capture diff once, run multiple reviews in parallel
+DIFF=$(git diff HEAD~1)
+
+echo "$DIFF" | claude -p "security review" > security.md &
+echo "$DIFF" | claude -p "performance review" > performance.md &
+echo "$DIFF" | claude -p "code quality review" > quality.md &
+
+wait  # Wait for all background jobs to complete
+
+echo "✅ All reviews complete!"
+```
+
+### JSON Output for Processing
+
+```bash
+# Get structured output
+git diff HEAD~1 | \
+  claude -p "analyze code changes and output JSON with issues array" \
+  --output-format json > review.json
+
+# Process with jq
+cat review.json | jq '.issues[] | select(.severity == "high")'
+```
+
+---
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: AI Code Review
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2  # Need at least 2 commits for diff
+      
+      - name: Install Claude Code
+        run: curl -sL https://install.anthropic.com | sh
+      
+      - name: Run AI Reviews
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Run parallel reviews
+          git diff HEAD~1 | claude -p "security review" > security.md &
+          git diff HEAD~1 | claude -p "performance review" > performance.md &
+          git diff HEAD~1 | claude -p "code quality review" > quality.md &
+          wait
+      
+      - name: Upload Reviews
+        uses: actions/upload-artifact@v3
+        with:
+          name: ai-reviews
+          path: |
+            security.md
+            performance.md
+            quality.md
+      
+      - name: Comment on PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const security = fs.readFileSync('security.md', 'utf8');
+            const performance = fs.readFileSync('performance.md', 'utf8');
+            
+            const body = `## 🤖 AI Code Review
+            
+            ### 🔒 Security Analysis
+            ${security}
+            
+            ### ⚡ Performance Analysis
+            ${performance}
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+```
+
+### GitLab CI
+
+```yaml
+ai-code-review:
+  stage: test
+  image: node:18
+  
+  before_script:
+    - curl -sL https://install.anthropic.com | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+  
+  script:
+    - git diff HEAD~1 | claude -p "comprehensive security review" > security_review.md
+    - git diff HEAD~1 | claude -p "performance and optimization review" > performance_review.md
+    - git diff HEAD~1 | claude -p "code quality and maintainability review" > quality_review.md
+  
+  artifacts:
+    paths:
+      - security_review.md
+      - performance_review.md
+      - quality_review.md
+    expire_in: 1 week
+  
+  only:
+    - merge_requests
+```
+
+### Pre-commit Hook
+
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+
+echo "🤖 Running AI code review on staged changes..."
+
+# Review staged changes
+git diff --staged | claude -p "quick review - flag critical issues only" > /tmp/pre_commit_review.md
+
+# Check for critical issues
+if grep -qi "critical\|high severity\|security" /tmp/pre_commit_review.md; then
+    echo "⚠️  Critical issues found in staged changes!"
+    cat /tmp/pre_commit_review.md
+    echo ""
+    read -p "Continue with commit? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+fi
+
+echo "✅ Pre-commit review passed"
+```
+
+---
+
+## Shell Scripts
+
+### Comprehensive Review Script
+
+```bash
+#!/bin/bash
+# comprehensive_review.sh
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Configuration
+OUTPUT_DIR="reviews"
+COMMITS_BACK="${1:-1}"  # Default to last commit, or pass number
+
+echo -e "${YELLOW}🤖 Running comprehensive AI code review...${NC}"
+echo "Reviewing last $COMMITS_BACK commit(s)"
+
+# Create output directory
+mkdir -p "$OUTPUT_DIR"
+
+# Capture diff
+DIFF=$(git diff HEAD~$COMMITS_BACK)
+
+if [ -z "$DIFF" ]; then
+    echo -e "${RED}No changes found in last $COMMITS_BACK commit(s)${NC}"
+    exit 1
+fi
+
+# Run reviews in parallel
+echo -e "${YELLOW}Running security review...${NC}"
+echo "$DIFF" | claude -p "Detailed security review focusing on vulnerabilities, data exposure, and authentication" > "$OUTPUT_DIR/security.md" &
+
+echo -e "${YELLOW}Running performance review...${NC}"
+echo "$DIFF" | claude -p "Performance analysis focusing on efficiency, scalability, and resource usage" > "$OUTPUT_DIR/performance.md" &
+
+echo -e "${YELLOW}Running code quality review...${NC}"
+echo "$DIFF" | claude -p "Code quality review focusing on maintainability, readability, and best practices" > "$OUTPUT_DIR/quality.md" &
+
+echo -e "${YELLOW}Running architecture review...${NC}"
+echo "$DIFF" | claude -p "Architecture review focusing on design patterns, SOLID principles, and structure" > "$OUTPUT_DIR/architecture.md" &
+
+echo -e "${YELLOW}Running test coverage review...${NC}"
+echo "$DIFF" | claude -p "Test coverage review - identify untested code and suggest test cases" > "$OUTPUT_DIR/testing.md" &
+
+# Wait for all reviews to complete
+wait
+
+echo -e "${GREEN}✅ All reviews complete!${NC}"
+echo ""
+echo "Review files created in $OUTPUT_DIR/:"
+ls -lh "$OUTPUT_DIR"/*.md
+
+# Generate summary
+echo -e "${YELLOW}Generating summary...${NC}"
+cat "$OUTPUT_DIR"/*.md | claude -p "Create executive summary of these code reviews" > "$OUTPUT_DIR/SUMMARY.md"
+
+echo -e "${GREEN}✅ Summary created: $OUTPUT_DIR/SUMMARY.md${NC}"
+```
+
+Usage:
+```bash
+# Review last commit
+./comprehensive_review.sh
+
+# Review last 3 commits
+./comprehensive_review.sh 3
+```
+
+### SAP-Specific Review Script
+
+```bash
+#!/bin/bash
+# sap_review.sh - SAP-specific code review
+
+OUTPUT_DIR="sap_reviews"
+mkdir -p "$OUTPUT_DIR"
+
+echo "🔍 SAP Development Review"
+
+# CAP Reviews
+if git diff HEAD~1 -- db/ srv/ | grep -q .; then
+    echo "Reviewing CAP artifacts..."
+    
+    git diff HEAD~1 -- db/ | \
+        claude -p "Review CDS models for data modeling, associations, and CAP best practices" \
+        > "$OUTPUT_DIR/cap_datamodel.md" &
+    
+    git diff HEAD~1 -- srv/ | \
+        claude -p "Review CAP services for OData, security, transactions, and error handling" \
+        > "$OUTPUT_DIR/cap_services.md" &
+fi
+
+# UI5 Reviews
+if git diff HEAD~1 -- webapp/ | grep -q .; then
+    echo "Reviewing UI5/Fiori artifacts..."
+    
+    git diff HEAD~1 -- webapp/controller/ | \
+        claude -p "Review UI5 controllers for memory leaks, event handling, and best practices" \
+        > "$OUTPUT_DIR/ui5_controllers.md" &
+    
+    git diff HEAD~1 -- webapp/manifest.json | \
+        claude -p "Validate Fiori manifest configuration" \
+        > "$OUTPUT_DIR/fiori_manifest.md" &
+fi
+
+# Configuration Reviews
+git diff HEAD~1 -- package.json mta.yaml xs-security.json | \
+    claude -p "Review SAP configuration files for deployment and security settings" \
+    > "$OUTPUT_DIR/config.md" &
+
+wait
+echo "✅ SAP review complete! Check $OUTPUT_DIR/"
+```
+
+### Smart Review Router
+
+```bash
+#!/bin/bash
+# smart_review.sh - Automatically determines what type of review to run
+
+DIFF=$(git diff HEAD~1)
+
+if echo "$DIFF" | grep -q "password\|token\|secret\|api_key"; then
+    echo "🔐 Security-sensitive changes detected"
+    echo "$DIFF" | claude -p "Critical security review - check for exposed secrets and vulnerabilities" > security_critical.md
+fi
+
+if echo "$DIFF" | grep -q "SELECT\|INSERT\|UPDATE\|DELETE\|Query"; then
+    echo "🗄️ Database changes detected"
+    echo "$DIFF" | claude -p "Database and query optimization review" > database_review.md
+fi
+
+if echo "$DIFF" | grep -q "\.test\.\|\.spec\."; then
+    echo "🧪 Test changes detected"
+    echo "$DIFF" | claude -p "Test quality and coverage review" > test_review.md
+fi
+
+if echo "$DIFF" | grep -q "package\.json\|requirements\.txt\|pom\.xml"; then
+    echo "📦 Dependency changes detected"
+    echo "$DIFF" | claude -p "Dependency security and compatibility review" > deps_review.md
+fi
+
+echo "✅ Smart review complete!"
+```
+
+---
+
+## Best Practices
+
+### 1. Review Scope
+
+```bash
+# ❌ Too broad - reviews entire codebase history
+git diff HEAD~100 | claude -p "review everything"
+
+# ✅ Focused - reviews specific change
+git diff HEAD~1 -- src/auth.js | claude -p "security review of auth changes"
+```
+
+### 2. Clear Instructions
+
+```bash
+# ❌ Vague
+git diff HEAD~1 | claude -p "check this"
+
+# ✅ Specific
+git diff HEAD~1 | claude -p "Review for SQL injection, XSS, and authentication bypass vulnerabilities"
+```
+
+### 3. Meaningful Output Files
+
+```bash
+# ❌ Generic names
+... > output.txt
+
+# ✅ Descriptive names with timestamps
+... > "security_review_$(date +%Y%m%d_%H%M%S).md"
+```
+
+### 4. Error Handling
+
+```bash
+#!/bin/bash
+set -e  # Exit on error
+
+if ! command -v claude &> /dev/null; then
+    echo "Claude Code not installed"
+    exit 1
+fi
+
+if ! git diff HEAD~1 | grep -q .; then
+    echo "No changes to review"
+    exit 0
+fi
+
+# Proceed with review
+```
+
+### 5. Cost Management
+
+```bash
+# Use --max-tokens to limit response size
+git diff HEAD~1 | \
+    claude -p "quick security scan - list issues only" \
+    --max-tokens 1000 > quick_review.md
+
+# Review only changed files in specific directories
+git diff HEAD~1 -- src/ tests/ | \
+    claude -p "focused review" > focused_review.md
+```
+
+### 6. Organize Output
+
+```bash
+# Create dated review directory
+REVIEW_DIR="reviews/$(date +%Y-%m-%d)"
+mkdir -p "$REVIEW_DIR"
+
+git diff HEAD~1 | claude -p "security" > "$REVIEW_DIR/security.md"
+git diff HEAD~1 | claude -p "performance" > "$REVIEW_DIR/performance.md"
+```
+
+### 7. Team Workflows
+
+```bash
+# Save reviews with commit hash for tracking
+COMMIT_HASH=$(git rev-parse --short HEAD)
+git diff HEAD~1 | \
+    claude -p "security review" > "reviews/security_${COMMIT_HASH}.md"
+```
+
+---
+
+## Comparison: SDK Mode vs Interactive
+
+| Feature | `claude -p` (SDK) | `claude` (Interactive) |
+|---------|------------------|----------------------|
+| **Execution** | One-shot, exits immediately | Continuous REPL session |
+| **Use Case** | Automation, scripts, CI/CD | Development, exploration |
+| **Context** | Single query only | Conversation history |
+| **Output** | Stdout (redirect to file) | Terminal display |
+| **Cost** | Single API call | Multiple turns |
+| **Interactivity** | None | Full conversation |
+| **Perfect For** | Code reviews, batch processing | Coding, debugging, planning |
+
+---
+
+## Tips for SAP Developers
+
+### 1. Review Frequency
+
+```bash
+# Before pushing
+git diff origin/main...HEAD | claude -p "review all changes before push" > pre_push_review.md
+
+# After each feature
+git diff main...feature-branch | claude -p "feature completeness review" > feature_review.md
+```
+
+### 2. Technology-Specific Reviews
+
+```bash
+# CDS-specific
+git diff HEAD~1 -- '*.cds' | \
+    claude -p "Review CDS syntax, associations, and annotations per CAP best practices" > cds_review.md
+
+# SAPUI5-specific  
+git diff HEAD~1 -- webapp/ | \
+    claude -p "Review against UI5 best practices, check for memory leaks in controllers" > ui5_review.md
+```
+
+### 3. Deployment Reviews
+
+```bash
+# Before BTP deployment
+git diff HEAD~1 -- mta.yaml xs-security.json | \
+    claude -p "Validate BTP deployment configuration and security settings" > deployment_review.md
+```
+
+### 4. Integration with SAP Tools
+
+```bash
+# After CAP build
+cds build && \
+git diff HEAD~1 -- gen/ | \
+    claude -p "Review generated artifacts for issues" > generated_review.md
+```
+
+---
+
+## Troubleshooting
+
+### No output file created
+
+```bash
+# Check if diff has content
+git diff HEAD~1
+# If empty, no changes to review
+
+# Verify Claude Code is authenticated
+claude auth status
+```
+
+### Review file is empty
+
+```bash
+# Claude might need more specific instruction
+# Add context to the prompt
+git diff HEAD~1 | \
+    claude -p "You are reviewing JavaScript code. Check for security issues in detail." \
+    > security.md
+```
+
+### Rate limiting
+
+```bash
+# Add delays between parallel reviews
+git diff HEAD~1 | claude -p "security" > security.md
+sleep 2
+git diff HEAD~1 | claude -p "performance" > performance.md
+```
+
+### Large diffs timing out
+
+```bash
+# Review specific sections
+git diff HEAD~1 -- src/critical/ | claude -p "review" > critical_review.md
+git diff HEAD~1 -- src/other/ | claude -p "review" > other_review.md
+```
+
+---
+
+## Resources
+
+- [Claude Code Documentation](https://docs.claude.com/en/docs/claude-code/overview)
+- [Git Diff Documentation](https://git-scm.com/docs/git-diff)
+- [GitHub Actions CI/CD](https://docs.github.com/en/actions)
+- [GitLab CI/CD](https://docs.gitlab.com/ee/ci/)
+
+---
+
+## Example Review Outputs
+
+### Security Review Output
+```markdown
+# Security Review - 2024-12-14
+
+## Critical Issues (2)
+
+### 1. SQL Injection Vulnerability
+**File**: `src/database/users.js`  
+**Line**: 45  
+**Severity**: CRITICAL
+
+**Issue**: Direct string concatenation in SQL query
+```javascript
+const query = `SELECT * FROM users WHERE id = ${userId}`;
+```
+
+**Recommendation**: Use parameterized queries
+```javascript
+const query = 'SELECT * FROM users WHERE id = ?';
+db.query(query, [userId]);
+```
+
+## Warnings (3)
+- Missing input validation on user endpoints
+- No rate limiting on authentication routes
+- Passwords logged in error messages
+
+## Passed Checks
+✅ No hardcoded credentials found  
+✅ HTTPS enforced  
+✅ CORS configured properly
+```
+
+---
+
+**Last Updated**: December 2024  
+**Compatibility**: Claude Code SDK Mode, Git 2.x+
